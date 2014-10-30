@@ -33,6 +33,8 @@
 #define INCLUDE_GUARD_PFI_TEXT_JSON_CAST_H_
 
 #include <algorithm>
+#include <limits>
+#include <sstream>
 #include <string>
 #include <typeinfo>
 
@@ -58,6 +60,57 @@ To const& throw_json_bad_cast(const json& from)
     msg += '.';
     throw json_bad_cast<To>(msg);
 }
+
+template <class I>
+bool is_valid_int(int64_t val)
+{
+  if (std::numeric_limits<I>::is_signed) {
+    return std::numeric_limits<I>::min() <= val
+        && val <= std::numeric_limits<I>::max();
+  } else {
+    return 0 <= val
+        && static_cast<uint64_t>(val) <= std::numeric_limits<I>::max();
+  }
+}
+
+template <class I>
+I json_integer_to_int(const json_integer& j)
+{
+  int64_t v = j.get();
+  if (!detail::is_valid_int<I>(v)) {
+    std::stringstream ss;
+    ss << "Invalid value of integer. Valid range is ["
+       << std::numeric_limits<I>::min()
+       << " ... "
+       << std::numeric_limits<I>::max()
+       << "], but "
+       << v
+       << " is given.";
+    throw json_bad_cast<json_integer>(ss.str());
+  }
+  return static_cast<I>(v);
+}
+
+template <class I>
+I json_cast_int(const json& js)
+{
+  if (const json_integer* p = dynamic_cast<const json_integer*>(js.get())) {
+    return json_integer_to_int<I>(*p);
+  } else {
+    return throw_json_bad_cast<I>(js);
+  }
+}
+
+template <class I>
+I json_cast_int_def(const json& js, const I& def)
+{
+  if (const json_integer* p = dynamic_cast<const json_integer*>(js.get())) {
+    return json_integer_to_int<I>(*p);
+  } else {
+    return def;
+  }
+}
+
 }
 
 template <class T>
@@ -75,45 +128,61 @@ T json_cast_with_default(const json& js, const T& def = T());
 template <>
 inline long json_cast_impl(const json& js)
 {
-  if (const json_integer* p = dynamic_cast<const json_integer*>(js.get()))
-    return p->get();
-
-  return detail::throw_json_bad_cast<long>(js);
+  return detail::json_cast_int<long>(js);
 }
 
 template <>
 inline long json_cast_with_default(const json& js, const long& def)
 {
-  const json_integer* p = dynamic_cast<const json_integer*>(js.get());
-  return p ? p->get() : def;
+  return detail::json_cast_int_def<long>(js, def);
 }
 
 template <>
 inline long long json_cast_impl(const json& js)
 {
-  if (const json_integer* p = dynamic_cast<const json_integer*>(js.get()))
-    return p->get();
-
-  return detail::throw_json_bad_cast<long long>(js);
+  return detail::json_cast_int<long long>(js);
 }
 
 template <>
 inline long long json_cast_with_default(const json& js, const long long& def)
 {
-  const json_integer* p = dynamic_cast<const json_integer*>(js.get());
-  return p ? p->get() : def;
+  return detail::json_cast_int_def<long long>(js, def);
 }
 
 template <>
 inline int json_cast_impl(const json& js)
 {
-  return static_cast<int>(json_cast<int64_t>(js));
+  return detail::json_cast_int<int>(js);
 }
 
 template <>
 inline int json_cast_with_default(const json& js, const int& def)
 {
-  return static_cast<int>(json_cast_with_default<int64_t>(js, def));
+  return detail::json_cast_int_def<int>(js, def);
+}
+
+template <>
+inline unsigned int json_cast_impl(const json& js)
+{
+  return detail::json_cast_int<unsigned int>(js);
+}
+
+template <>
+inline unsigned int json_cast_with_default(const json& js, const unsigned int& def)
+{
+  return detail::json_cast_int_def<unsigned int>(js, def);
+}
+
+template <>
+inline unsigned long json_cast_impl(const json& js)
+{
+  return detail::json_cast_int<unsigned long>(js);
+}
+
+template <>
+inline unsigned long json_cast_with_default(const json& js, const unsigned long& def)
+{
+  return detail::json_cast_int_def<unsigned long>(js, def);
 }
 
 template <>
